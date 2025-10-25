@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CyberThreat Analyzer v10.3</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- مكتبة Vis.js Timeline مضافة -->
+    <script src="https://unpkg.com/vis-timeline@latest/standalone/umd/vis-timeline-graph2d.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        /* --- الأنماط العامة والتصميم المطلوب --- */
+        :root {
+            --primary-color: #00bcd4; /* Cyan */
+            --secondary-color: #3f51b5; /* Indigo */
+            --bg-dark: #1f2937; /* Dark Gray */
+            --bg-light: #2c3e50; /* Slightly Lighter Dark */
+            --text-light: #f3f4f6;
+            --critical-color: #ef4444; /* Red */
+            --high-color: #f59e0b; /* Amber */
+            --medium-color: #fbbf24; /* Yellow */
+            --low-color: #10b981; /* Green */
+        }
+        body {
+            font-family: 'Cairo', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-light);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+        }
+        .container {
+            width: 95%;
+            max-width: 1400px;
+            margin: 20px auto;
+            border-radius: 1rem;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+            padding: 20px;
+        }
+        .card {
+            background-color: var(--bg-light);
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+            margin-bottom: 1.5rem;
+        }
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: #1f2937;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 700;
+            transition: background-color 0.3s;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4);
+        }
+        .btn-primary:hover {
+            background-color: #00e5ff;
+        }
+        .severity-critical { background-color: var(--critical-color); color: white; }
+        .severity-high { background-color: var(--high-color); color: black; }
+        .severity-medium { background-color: var(--medium-color); color: black; }
+        .severity-low { background-color: var(--low-color); color: white; }
+        .nav-button {
+            background-color: var(--secondary-color);
+            color: var(--text-light);
+            padding: 0.5rem 1rem;
+            margin-left: 0.5rem;
+            border-radius: 0.5rem 0.5rem 0 0;
+            font-weight: 700;
+            transition: background-color 0.3s;
+        }
+        .nav-button.active {
+            background-color: var(--primary-color);
+            color: var(--bg-dark);
+        }
+        .nav-button:hover:not(.active) {
+            background-color: #5c6bc0;
+        }
+        .content-section {
+            display: none;
+            padding-top: 1rem;
+        }
+        .content-section.active {
+            display: block;
+        }
+        .table-custom th, .table-custom td {
+            padding: 0.75rem;
+            text-align: right;
+            border-bottom: 1px solid rgba(243, 244, 246, 0.1);
+        }
+        .table-custom th {
+            background-color: rgba(0, 188, 212, 0.2);
+            font-weight: 700;
+        }
+        .table-custom tr:last-child td {
+            border-bottom: none;
+        }
+        .risk-score {
+            font-size: 4rem;
+            font-weight: 700;
+            text-align: center;
+            border-radius: 1rem;
+            line-height: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .timeline-container {
+            height: 400px;
+            border: 1px solid var(--primary-color);
+            border-radius: 0.5rem;
+        }
+        /* --- تخصيص Vis.js Timeline --- */
+        .vis-timeline {
+            border: 1px solid var(--bg-dark);
+            background-color: var(--bg-light); 
+        }
+        .vis-item {
+            border-color: var(--primary-color);
+            background-color: rgba(0, 188, 212, 0.1);
+            color: var(--text-light);
+        }
+        .vis-time-axis .vis-text {
+            color: var(--text-light);
+        }
+    </style>
+</head>
+<body class="p-4">
+
+<div class="container">
+    <header class="text-center mb-6">
+        <h1 class="text-4xl font-bold text-white mb-2" style="color: var(--primary-color);">CyberThreat Analyzer v10.3</h1>
+        <p class="text-gray-300">منصة تحليل التهديدات الجنائية الرقمية بـ AI | شاشة المهاجمين</p>
+    </header>
+
+    <div class="card">
+        <h2 class="text-xl font-bold mb-4" style="color: var(--primary-color);">نقطة الإدخال: تحميل بيانات السجل/التكوين</h2>
+        <form id="analysis-form" class="flex flex-col md:flex-row gap-4 items-center">
+            <input type="file" id="file-input" name="file" class="hidden" required>
+            <label for="file-input" class="cursor-pointer flex-grow p-3 bg-gray-700 text-gray-300 rounded-lg transition duration-200 hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-color" id="file-label">
+                ...Browse
+            </label>
+            <button type="submit" class="btn-primary w-full md:w-auto">بدء التحليل العميق</button>
+        </form>
+        
+        <p id="status-message" class="text-center mt-4 text-gray-400">المرحلة الحالية: قف للتحليل.</p>
+        <div id="error-message" class="hidden mt-4 p-3 rounded-lg text-white font-bold" style="background-color: var(--critical-color);"></div>
+    </div>
+
+    <div id="results-area" class="hidden">
+        
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+            <div class="card col-span-1 flex flex-col items-center justify-center space-y-4">
+                <h3 class="text-lg font-bold">ملخص المخاطر</h3>
+                <div id="risk-display" class="risk-score w-full h-32 text-white p-4">90</div>
+                <div id="risk-level" class="text-xl font-bold p-1 rounded-lg text-center w-full">Critical</div>
+            </div>
+            
+            <div class="card col-span-2">
+                <h3 class="text-lg font-bold mb-2">سردية الهجوم (AI Narrative)</h3>
+                <div id="attack-narrative-summary" class="mb-3 p-3 bg-gray-700 rounded-md text-gray-200 text-sm"></div>
+                <div class="grid grid-cols-2 gap-2 text-sm">
+                    <div><span class="font-bold">النية:</span> <span id="attacker-intent"></span></div>
+                    <div><span class="font-bold">أصل الهجوم:</span> <span id="attack-origin-country"></span></div>
+                    <div class="col-span-2"><span class="font-bold">مراحل الهجوم المكتشفة:</span> <span id="attack-stages"></span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex border-b-2 border-primary-color mb-4">
+            <button class="nav-button active" onclick="showSection('findings')">النتائج التفصيلية والمؤشرات</button>
+            <button class="nav-button" onclick="showSection('ip-intelligence')">استخبارات IP وحالة الحياة</button>
+            <button class="nav-button" onclick="showSection('rca')">تحليل السبب الجذري (RCA)</button>
+            <button class="nav-button" onclick="showSection('yara')">قواعد YARA المطابقة</button>
+            <button class="nav-button" onclick="showSection('timeline')">الخط الزمني التفاعلي</button>
+        </div>
+
+        <div id="findings-section" class="content-section active card">
+            <h3 class="text-xl font-bold mb-4" style="color: var(--low-color);">التوصيات الرئيسية</h3>
+            <ul id="recommendations-list" class="list-disc pr-5 space-y-1 text-gray-300"></ul>
+            
+            <h3 class="text-xl font-bold my-4" style="color: var(--primary-color);">ملخص النتائج حسب الخطورة</h3>
+            <div id="detailed-findings" class="space-y-4">
+                </div>
+        </div>
+
+        <div id="ip-intelligence-section" class="content-section card">
+            <h3 class="text-xl font-bold mb-4" style="color: var(--primary-color);">استخبارات IP وحالة الحياة</h3>
+            <p class="text-sm text-yellow-400 mb-4">
+                تنبيه: البيانات الجغرافية محاكاة ذكية (Smart Mocking) وليست قاعدة بيانات GeoIP حقيقية. حالة الحياة (الحي/الميت) تستخدم فحص Ping حقيقي للـ IPs العامة فقط. الـ IPs الداخلية تظهر كـ (N/A) بشكل صحيح.
+            </p>
+            <table class="table-custom w-full rounded-lg overflow-hidden">
+                <thead>
+                    <tr class="text-right">
+                        <th>عنوان IP</th>
+                        <th>النوع</th> <th>المنظمة</th>
+                        <th>الدولة</th>
+                        <th>الدور</th>
+                        <th>الحالة</th>
+                    </tr>
+                </thead>
+                <tbody id="ip-intelligence-table">
+                    </tbody>
+            </table>
+        </div>
+
+        <div id="rca-section" class="content-section card">
+            <h3 class="text-xl font-bold mb-4" style="color: var(--primary-color);">تحليل السبب الجذري (Root Cause Analysis - RCA)</h3>
+            <table class="table-custom w-full rounded-lg overflow-hidden">
+                <thead>
+                    <tr class="text-right">
+                        <th>عنصر التحليل</th>
+                        <th>النتيجة/التفاصيل</th>
+                        <th>التوصية</th>
+                    </tr>
+                </thead>
+                <tbody id="rca-table">
+                    </tbody>
+            </table>
+        </div>
+        
+        <div id="yara-section" class="content-section card">
+            <h3 class="text-xl font-bold mb-4" style="color: var(--primary-color);">قواعد YARA المطابقة</h3>
+            <pre id="yara-output" class="p-4 bg-gray-700 text-green-400 rounded-lg whitespace-pre-wrap text-sm" style="direction: ltr; text-align: left;"></pre>
+        </div>
+
+        <div id="timeline-section" class="content-section card">
+            <h3 class="text-xl font-bold mb-4" style="color: var(--primary-color);">الخط الزمني التفاعلي للأحداث</h3>
+            <div id="visualization" class="timeline-container"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const form = document.getElementById('analysis-form');
+    const fileInput = document.getElementById('file-input');
+    const fileLabel = document.getElementById('file-label');
+    const statusMessage = document.getElementById('status-message');
+    const errorMessage = document.getElementById('error-message');
+    const resultsArea = document.getElementById('results-area');
+
+    // --- تحديث اسم الملف عند اختياره ---
+    fileInput.addEventListener('change', (event) => {
+        if (event.target.files.length > 0) {
+            fileLabel.textContent = event.target.files[0].name;
+            statusMessage.textContent = 'المرحلة الحالية: تم اختيار ملف، جاهز للتحليل.';
+        } else {
+            fileLabel.textContent = '...Browse';
+            statusMessage.textContent = 'المرحلة الحالية: قف للتحليل.';
+        }
+    });
+
+    // --- إرسال النموذج ---
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        errorMessage.classList.add('hidden');
+        resultsArea.classList.add('hidden');
+        statusMessage.textContent = 'المرحلة الحالية: جاري تحميل الملف وبدء التحليل على الخادم...';
+        statusMessage.style.color = '#fbbf24'; // Yellow
+
+        const formData = new FormData(form);
+        
+        try {
+            const response = await fetch('/analyze', {
+                method: 'POST',
+                body: formData,
+            });
+
+            if (!response.ok) {
+                // محاولة قراءة رسالة الخطأ من الخادم (عادةً JSON)
+                let errorDetails = `خطأ غير متوقع في الخادم (HTTP ${response.status})`;
+                try {
+                    const errorData = await response.json();
+                    // استخدام رسالة الخطأ من الخادم
+                    errorDetails = errorData.error || errorDetails; 
+                } catch (jsonError) {
+                    // إذا لم يكن هناك JSON في الاستجابة (مثل 404 أو 500)، نستخدم الحالة النصية
+                    errorDetails = `خطأ غير متوقع في الخادم (HTTP ${response.status} ${response.statusText})`;
+                }
+                throw new Error(errorDetails);
+            }
+
+            const data = await response.json();
+            displayResults(data);
+
+        } catch (error) {
+            statusMessage.textContent = 'المرحلة الحالية: فشل التحليل.';
+            statusMessage.style.color = '#ef4444'; // Red
+            errorMessage.textContent = `خطأ حرج: ${error.message}`;
+            errorMessage.classList.remove('hidden');
+            console.error('Error during analysis:', error);
+        }
+    });
+
+    // --- عرض النتائج ---
+    function displayResults(data) {
+        statusMessage.textContent = `المرحلة الحالية: تم إكمال التحليل بنجاح في ${data.analysis_metadata.analysis_time}.`;
+        statusMessage.style.color = '#10b981'; // Green
+        resultsArea.classList.remove('hidden');
+
+        // 1. ملخص المخاطر
+        const riskDisplay = document.getElementById('risk-display');
+        const riskLevel = document.getElementById('risk-level');
+        const score = data.risk_assessment.score;
+        const level = data.risk_assessment.level;
+        const colorClass = data.risk_assessment.color_class;
+
+        riskDisplay.textContent = score;
+        riskDisplay.className = `risk-score w-full h-32 text-white p-4 severity-${colorClass}`;
+        riskLevel.textContent = level;
+        riskLevel.className = `text-xl font-bold p-1 rounded-lg text-center w-full severity-${colorClass}`;
+        
+        // 2. سردية الهجوم
+        document.getElementById('attack-narrative-summary').innerHTML = data.attack_narrative.summary;
+        document.getElementById('attacker-intent').textContent = data.attack_narrative.attacker_intent;
+        document.getElementById('attack-origin-country').textContent = data.attack_narrative.attack_origin_country;
+        // التأكد من أن stages_found موجودة كصفيفة قبل استخدام join
+        const stages = Array.isArray(data.attack_narrative.stages_found) ? data.attack_narrative.stages_found : [];
+        document.getElementById('attack-stages').textContent = stages.join(', ');
+
+
+        // 3. التوصيات
+        const recommendationsList = document.getElementById('recommendations-list');
+        recommendationsList.innerHTML = data.recommendations.map(rec => 
+            `<li class="mb-1">${rec.replace(/\*\*/g, '<strong>').replace(/<\/?strong>/g, '')}</li>`
+        ).join('');
+
+        // 4. النتائج التفصيلية (تم تعديل الدالة لتعمل مع الصفائف)
+        renderDetailedFindings(data.detailed_findings);
+
+        // 5. استخبارات IP
+        renderIpIntelligence(data.tables.ip_intelligence);
+
+        // 6. RCA
+        renderRcaTable(data.tables.rca_analysis);
+        
+        // 7. YARA
+        // التأكد من وجود البيانات قبل الوصول إلى index 0
+        document.getElementById('yara-output').textContent = (data.tables.yara_analysis && data.tables.yara_analysis.length > 0 && data.tables.yara_analysis[0].النتيجة) 
+            ? data.tables.yara_analysis[0].النتيجة 
+            : 'لا توجد قواعد YARA مطابقة.';
+
+        // 8. الخط الزمني
+        renderTimeline(data.interactive_timeline.groups, data.interactive_timeline.items);
+        
+        // إعادة التعيين لزر التنقل
+        showSection('findings'); 
+    }
+
+    // --- وظائف العرض التفصيلي المُحدَّثة ---
+    function renderDetailedFindings(findings) {
+        const container = document.getElementById('detailed-findings');
+        container.innerHTML = '';
+        const order = ['critical', 'high', 'medium', 'low'];
+
+        order.forEach(severity => {
+            // الآن، كل مستوى خطورة هو صفيفة من الكائنات
+            const items = Array.isArray(findings[severity]) ? findings[severity] : [];
+
+            if (items.length === 0) return;
+            
+            // تجميع العناصر حسب نوع الاكتشاف (finding_type)
+            const groupedFindings = items.reduce((acc, item) => {
+                const type = item.finding_type || 'Uncategorized';
+                if (!acc[type]) {
+                    acc[type] = [];
+                }
+                acc[type].push(item);
+                return acc;
+            }, {});
+
+            const severityTitle = {
+                critical: '⚠️ نتائج حرجة (Critical)',
+                high: '🚨 نتائج عالية الخطورة (High)',
+                medium: '🔍 نتائج متوسطة (Medium)',
+                low: '📝 نتائج منخفضة (Low)'
+            }[severity];
+            const color = severity;
+
+            let html = `
+                <div class="p-4 rounded-lg severity-${color}">
+                    <h4 class="text-xl font-bold mb-3">${severityTitle} (${items.length} حدث)</h4>
+            `;
+
+            for (const type in groupedFindings) {
+                const typeItems = groupedFindings[type];
+                
+                // عرض نوع الاكتشاف كعنوان فرعي
+                const typeTitle = type.replace(/_/g, ' ').toUpperCase();
+                html += `<h5 class="text-lg font-semibold mt-3 mb-1">${typeTitle} (${typeItems.length} حدث):</h5>`;
+                
+                html += `<ul class="list-disc pr-5 space-y-2 text-sm">`;
+                typeItems.slice(0, 5).forEach(item => { // عرض 5 فقط
+                    const ips = (item.ip_matches && item.ip_matches.length > 0) ? ` [IPs: ${item.ip_matches.join(', ')}]` : '';
+                    const logEntry = item.log_entry || 'لا يوجد سطر سجل متاح.';
+                    const timestampStr = item.timestamp_str || 'N/A';
+                    const lineNumber = item.line || 'N/A';
+
+                    html += `
+                        <li class="text-gray-900 bg-gray-200 p-2 rounded-md shadow-inner">
+                            <span class="font-mono text-xs text-gray-700">${timestampStr} | سطر ${lineNumber}</span><br>
+                            ${logEntry.substring(0, 120)}...${ips}
+                        </li>
+                    `;
+                });
+                if (typeItems.length > 5) {
+                    html += `<li class="text-sm italic text-gray-900">+${typeItems.length - 5} المزيد من الأحداث...</li>`;
+                }
+                html += `</ul>`;
+            }
+
+            html += `</div>`;
+            container.innerHTML += html;
+        });
+    }
+    
+    function renderIpIntelligence(ipData) {
+        const tbody = document.getElementById('ip-intelligence-table');
+        tbody.innerHTML = '';
+        if (!Array.isArray(ipData)) return; // التأكد من أنها صفيفة
+        
+        ipData.forEach(item => {
+            const status = item.الحالة || 'N/A';
+            const statusColor = status === 'حي' ? 'bg-green-500' : status === 'ميت' ? 'bg-red-500' : 'bg-gray-500';
+            const statusText = status === 'N/A' ? 'غير متوفر' : status;
+            
+            // تحديد النوع (داخلي/خارجي)
+            let ipType = item.النوع || 'N/A';
+
+            const row = `
+                <tr class="hover:bg-gray-700 transition duration-150">
+                    <td>${item['عنوان IP'] || 'N/A'}</td>
+                    <td>${ipType}</td>
+                    <td>${item.المنظمة || 'N/A'}</td>
+                    <td>${item.الدولة || 'N/A'}</td>
+                    <td>${item.الدور || 'N/A'}</td>
+                    <td>
+                        <div class="flex items-center justify-end">
+                            <span class="text-xs font-semibold">${statusText}</span>
+                            <span class="inline-block w-3 h-3 rounded-full ml-2 ${statusColor}"></span>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            tbody.innerHTML += row;
+        });
+    }
+    
+    function renderRcaTable(rcaData) {
+        const tbody = document.getElementById('rca-table');
+        tbody.innerHTML = '';
+        if (!Array.isArray(rcaData)) return; // التأكد من أنها صفيفة
+
+        rcaData.forEach(item => {
+            const row = `
+                <tr class="hover:bg-gray-700 transition duration-150">
+                    <td class="font-semibold">${item['عنصر التحليل'] || 'N/A'}</td>
+                    <td>${item['النتيجة/التفاصيل'] || 'N/A'}</td>
+                    <td>${item.التوصية || 'N/A'}</td>
+                </tr>
+            `;
+            tbody.innerHTML += row;
+        });
+    }
+
+    function renderTimeline(groups, items) {
+        const container = document.getElementById('visualization');
+        container.innerHTML = ''; // تنظيف
+
+        // التأكد من أن items هي صفيفة
+        const timelineItems = Array.isArray(items) ? items : [];
+
+        if (timelineItems.length === 0) {
+            container.innerHTML = '<p class="text-center text-gray-400 p-10">لا توجد أحداث زمنية قابلة للعرض.</p>';
+            return;
+        }
+
+        const options = {
+            locale: 'ar',
+            direction: 'rtl',
+            stack: true,
+            zoomKey: 'ctrlKey',
+            selectable: true,
+            editable: false,
+            // تحديد اللغة والاتجاه لتجنب مشاكل العرض
+            locales: {
+                ar: {
+                    current: 'الحالي',
+                    time: 'الوقت',
+                }
+            },
+            timeAxis: { scale: 'hour' }
+        };
+
+        // يتم تمرير items و groups بعد التأكد من صحتها
+        new vis.Timeline(container, timelineItems, groups, options);
+    }
+    
+    // --- وظيفة التنقل ---
+    function showSection(sectionId) {
+        // إخفاء الكل
+        document.querySelectorAll('.content-section').forEach(section => {
+            section.classList.remove('active');
+        });
+        // إزالة حالة النشط من الأزرار
+        document.querySelectorAll('.nav-button').forEach(btn => {
+            btn.classList.remove('active');
+        });
+
+        // إظهار المطلوب
+        document.getElementById(`${sectionId}-section`).classList.add('active');
+        // تفعيل زر التنقل المطابق
+        document.querySelector(`.nav-button[onclick="showSection('${sectionId}')"]`).classList.add('active');
+    }
+
+    // تهيئة الواجهة عند التحميل الأولي
+    window.onload = () => {
+        showSection('findings');
+    };
+</script>
+
+</body>
+</html>
+    
