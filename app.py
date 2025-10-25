@@ -7,14 +7,12 @@ from google.genai import types
 from google.genai.errors import APIError
 
 # =========================================================================
-# 🛑🛑🛑 خطوة احترافية: قراءة المفتاح من متغيرات البيئة 🛑🛑🛑
-# يتم الآن قراءة المفتاح من الإعدادات التي وضعتها في Render.
+# 🛑🛑🛑 الإصلاح رقم 1: قراءة المفتاح من متغيرات البيئة 🛑🛑🛑
 API_KEY = os.environ.get('GEMINI_API_KEY')
 
-# إذا لم يتم تعيين المفتاح في متغيرات البيئة (وهو سبب الخطأ 502)، نرفع خطأ بيئي حرج.
+# إذا لم يتم تعيين المفتاح، نرفع خطأ بيئي حرج (حل مشكلة 502)
 if not API_KEY:
     print("FATAL ERROR: GEMINI_API_KEY is not set in environment.")
-    # هذا الخطأ سيوقف تشغيل Gunicorn ويعطي رسالة واضحة في سجلات Render
     raise EnvironmentError("GEMINI_API_KEY is required but not found in environment variables. Check Render environment settings.")
 
 try:
@@ -181,16 +179,24 @@ def analyze_log():
                 )
             )
             
-            # تحويل النص المستجاب إلى كائن JSON
+            # 🛑xz🛑🛑 الإصلاح رقم 2: معالجة JSON القوية لخطأ JSON.parse 🛑🛑ظ🛑
             try:
-                # إزالة أي علامات Markdown قد تظهر في استجابة النموذج (مثل ```json)
+                # 1. تنظيف النص: إزالة المسافات البيضاء وعلامات Markdown (مثل ```json)
                 json_text = response.text.strip().lstrip('```json').rstrip('```')
+                
+                # 2. التحقق للتأكد من أن النص يبدأ بـ { أو [ قبل محاولة التحويل
+                if not json_text.startswith('{') and not json_text.startswith('['):
+                    # إظهار بداية النص الذي فشل في التحليل للمساعدة في تصحيح الأخطاء
+                    print(f"JSON Parsing Failed: Response did not start with {{ or [. Beginning of text: {json_text[:200]}...")
+                    # رفع خطأ فك التشفير القياسي
+                    raise json.JSONDecodeError("Response is not valid JSON.", doc=json_text, pos=0)
+
                 analysis_data = json.loads(json_text)
                 return jsonify(analysis_data)
-            except json.JSONDecodeError:
-                print(f"Failed to decode JSON from model response: {response.text}")
-                # قد يكون الخطأ هو عدم وجود علامات الاقتباس حول حقول JSON في بعض الحالات النادرة
-                return jsonify({"error": "فشل تحليل استجابة الذكاء الاصطناعي إلى JSON. قد يكون المخطط غير مطابق."}), 500
+            
+            except json.JSONDecodeError as e:
+                # خطأ في تحليل JSON
+                return jsonify({"error": "فشل تحليل استجابة الذكاء الاصطناعي إلى JSON. قد يكون النموذج أضاف نصاً غير مطلوباً. (JSON Decode Error)"}), 500
 
         except APIError as e:
             # خطأ في مفتاح API أو الرصيد أو القيود
