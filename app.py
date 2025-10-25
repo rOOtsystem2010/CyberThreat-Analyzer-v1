@@ -121,22 +121,22 @@ ANALYSIS_SCHEMA = types.Schema(
             properties={
                 "critical": types.Schema(
                     type=types.Type.OBJECT,
-                    properties={"التفاصيل": types.Schema(type=types.Type.STRING, description="ملخص النتائج الحرجة.")}, # 🛑 الإصلاح هنا 🛑
+                    properties={"التفاصيل": types.Schema(type=types.Type.STRING, description="ملخص النتائج الحرجة.")},
                     required=["التفاصيل"]
                 ),
                 "high": types.Schema(
                     type=types.Type.OBJECT,
-                    properties={"التفاصيل": types.Schema(type=types.Type.STRING, description="ملخص النتائج العالية.")}, # 🛑 الإصلاح هنا 🛑
+                    properties={"التفاصيل": types.Schema(type=types.Type.STRING, description="ملخص النتائج العالية.")},
                     required=["التفاصيل"]
                 ),
                 "medium": types.Schema(
                     type=types.Type.OBJECT,
-                    properties={"التفاصيل": types.Schema(type=types.Type.STRING, description="ملخص النتائج المتوسطة.")}, # 🛑 الإصلاح هنا 🛑
+                    properties={"التفاصيل": types.Schema(type=types.Type.STRING, description="ملخص النتائج المتوسطة.")},
                     required=["التفاصيل"]
                 ),
                 "low": types.Schema(
                     type=types.Type.OBJECT,
-                    properties={"التفاصيل": types.Schema(type=types.Type.STRING, description="ملخص النتائج المنخفضة.")}, # 🛑 الإصلاح هنا 🛑
+                    properties={"التفاصيل": types.Schema(type=types.Type.STRING, description="ملخص النتائج المنخفضة.")},
                     required=["التفاصيل"]
                 )
             },
@@ -148,11 +148,32 @@ ANALYSIS_SCHEMA = types.Schema(
             properties={
                 "groups": types.Schema(
                     type=types.Type.ARRAY,
-                    items=types.Schema(type=types.Type.OBJECT, description="كائن يصف مجموعة زمنية.") # 🛑 الإصلاح هنا 🛑
+                    items=types.Schema(
+                        type=types.Type.OBJECT, 
+                        description="كائن يصف مجموعة زمنية.",
+                        properties={ # 🛑 الإصلاح هنا 🛑
+                            "id": types.Schema(type=types.Type.STRING, description="معرف فريد للمجموعة (مثل اسم المرحلة/المهاجم)."),
+                            "content": types.Schema(type=types.Type.STRING, description="عنوان المجموعة.")
+                        },
+                        required=["id", "content"],
+                        property_ordering=["id", "content"]
+                    )
                 ),
                 "items": types.Schema(
                     type=types.Type.ARRAY,
-                    items=types.Schema(type=types.Type.OBJECT, description="كائن يصف حدثاً زمنياً.") # 🛑 الإصلاح هنا 🛑
+                    items=types.Schema(
+                        type=types.Type.OBJECT, 
+                        description="كائن يصف حدثاً زمنياً.",
+                        properties={ # 🛑 الإصلاح هنا 🛑
+                            "id": types.Schema(type=types.Type.INTEGER, description="معرف فريد للعنصر."),
+                            "group": types.Schema(type=types.Type.STRING, description="معرف المجموعة التي ينتمي إليها هذا العنصر."),
+                            "start": types.Schema(type=types.Type.STRING, description="التاريخ والوقت بتنسيق ISO 8601."),
+                            "content": types.Schema(type=types.Type.STRING, description="وصف موجز للحدث."),
+                            "style": types.Schema(type=types.Type.STRING, description="لون CSS لتمييز العنصر (اختياري).")
+                        },
+                        required=["id", "group", "start", "content"],
+                        property_ordering=["id", "group", "start", "content", "style"]
+                    )
                 )
             },
             required=["groups", "items"]
@@ -176,8 +197,6 @@ def index():
 @app.route('/analyze', methods=['POST'])
 def analyze_log():
     """نقطة النهاية لتحليل ملف السجل."""
-    
-    # لم يعد هناك حاجة للتحقق من client.api_key هنا
     
     if 'file' not in request.files:
         return jsonify({"success": False, "error": "لم يتم إرفاق ملف (File input name should be 'file')"}), 400
@@ -230,7 +249,7 @@ def analyze_log():
                 return jsonify({"success": False, "error": "فشل تحليل استجابة الذكاء الاصطناعي إلى JSON. قد يكون النموذج أضاف نصاً غير مطلوباً. (JSON Decode Error)"}), 500
 
         except APIError as e:
-            # الآن ستظهر رسائل أخطاء المخطط هنا (مثل الخطأ الذي أرسلته سابقاً)
+            # الآن ستظهر رسائل أخطاء المخطط هنا 
             return jsonify({"success": False, "error": f"خطأ في الاتصال بواجهة Gemini API (API Error): {e.message}"}), 500
         except Exception as e:
             return jsonify({"success": False, "error": f"حدث خطأ غير متوقع أثناء المعالجة: {e}"}), 500
@@ -241,3 +260,15 @@ if __name__ == '__main__':
     if 'RENDER' not in os.environ:
         print("Running Flask locally (Development Mode)...")
         app.run(debug=True, host='0.0.0.0', port=5000)
+```
+---
+
+### 📝 خطة العمل الأخيرة
+
+1.  **استبدل محتوى `app.py`** بالكامل بالكود أعلاه (مع التركيز على التغييرات داخل `interactive_timeline`).
+2.  نفذ أوامر Git:
+    ```powershell
+    git add app.py
+    git commit -m "FIX: Final Schema definition for interactive_timeline groups and items properties (Last API Error Solution)"
+    git push origin main
+    
