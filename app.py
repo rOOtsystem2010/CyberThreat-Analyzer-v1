@@ -151,7 +151,7 @@ ANALYSIS_SCHEMA = types.Schema(
                     items=types.Schema(
                         type=types.Type.OBJECT, 
                         description="كائن يصف مجموعة زمنية.",
-                        properties={ # 🛑 الإصلاح هنا 🛑
+                        properties={ 
                             "id": types.Schema(type=types.Type.STRING, description="معرف فريد للمجموعة (مثل اسم المرحلة/المهاجم)."),
                             "content": types.Schema(type=types.Type.STRING, description="عنوان المجموعة.")
                         },
@@ -164,7 +164,7 @@ ANALYSIS_SCHEMA = types.Schema(
                     items=types.Schema(
                         type=types.Type.OBJECT, 
                         description="كائن يصف حدثاً زمنياً.",
-                        properties={ # 🛑 الإصلاح هنا 🛑
+                        properties={ 
                             "id": types.Schema(type=types.Type.INTEGER, description="معرف فريد للعنصر."),
                             "group": types.Schema(type=types.Type.STRING, description="معرف المجموعة التي ينتمي إليها هذا العنصر."),
                             "start": types.Schema(type=types.Type.STRING, description="التاريخ والوقت بتنسيق ISO 8601."),
@@ -260,15 +260,3 @@ if __name__ == '__main__':
     if 'RENDER' not in os.environ:
         print("Running Flask locally (Development Mode)...")
         app.run(debug=True, host='0.0.0.0', port=5000)
-```
----
-
-### 📝 خطة العمل الأخيرة
-
-1.  **استبدل محتوى `app.py`** بالكامل بالكود أعلاه (مع التركيز على التغييرات داخل `interactive_timeline`).
-2.  نفذ أوامر Git:
-    ```powershell
-    git add app.py
-    git commit -m "FIX: Final Schema definition for interactive_timeline groups and items properties (Last API Error Solution)"
-    git push origin main
-    
