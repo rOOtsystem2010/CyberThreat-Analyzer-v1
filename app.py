@@ -2,6 +2,7 @@ import os
 import json
 import io
 from flask import Flask, request, jsonify, render_template
+from flask_compress import Compress # 🛑 الإصلاح الجديد: استيراد مكتبة الضغط Gzip 🛑
 from google import genai
 from google.genai import types
 from google.genai.errors import APIError
@@ -24,6 +25,7 @@ except Exception as e:
 # =========================================================================
 
 app = Flask(__name__, template_folder='templates')
+Compress(app) # 🛑 الإصلاح الجديد: تهيئة ضغط Gzip لمعالجة الاستجابات الطويلة 🛑
 
 # مخطط JSON المطلوب من النموذج (ضروري للحصول على استجابة منظمة)
 ANALYSIS_SCHEMA = types.Schema(
@@ -179,7 +181,7 @@ def analyze_log():
                 )
             )
             
-            # 🛑xz🛑🛑 الإصلاح رقم 2: معالجة JSON القوية لخطأ JSON.parse 🛑🛑ظ🛑
+            # 🛑 الإصلاح رقم 2: معالجة JSON القوية لخطأ JSON.parse 🛑
             try:
                 # 1. تنظيف النص: إزالة المسافات البيضاء وعلامات Markdown (مثل ```json)
                 json_text = response.text.strip().lstrip('```json').rstrip('```')
@@ -192,20 +194,21 @@ def analyze_log():
                     raise json.JSONDecodeError("Response is not valid JSON.", doc=json_text, pos=0)
 
                 analysis_data = json.loads(json_text)
+                # يتم الآن ضغط الاستجابة تلقائياً بواسطة Flask-Compress
                 return jsonify(analysis_data)
             
             except json.JSONDecodeError as e:
                 # خطأ في تحليل JSON
-                return jsonify({"error": "فشل تحليل استجابة الذكاء الاصطناعي إلى JSON. قد يكون النموذج أضاف نصاً غير مطلوباً. (JSON Decode Error)"}), 500
+                return jsonify({"success": False, "error": "فشل تحليل استجابة الذكاء الاصطناعي إلى JSON. قد يكون النموذج أضاف نصاً غير مطلوباً. (JSON Decode Error)"}), 500
 
         except APIError as e:
             # خطأ في مفتاح API أو الرصيد أو القيود
-            return jsonify({"error": f"خطأ في الاتصال بواجهة Gemini API (API Error): {e.message}"}), 500
+            return jsonify({"success": False, "error": f"خطأ في الاتصال بواجهة Gemini API (API Error): {e.message}"}), 500
         except Exception as e:
             # معالجة الأخطاء العامة
-            return jsonify({"error": f"حدث خطأ غير متوقع أثناء المعالجة: {e}"}), 500
+            return jsonify({"success": False, "error": f"حدث خطأ غير متوقع أثناء المعالجة: {e}"}), 500
 
-    return jsonify({"error": "نوع ملف غير مدعوم. يرجى استخدام .log، .txt، .csv، .json أو .jsonl"}), 400
+    return jsonify({"success": False, "error": "نوع ملف غير مدعوم. يرجى استخدام .log، .txt، .csv، .json أو .jsonl"}), 400
 
 if __name__ == '__main__':
     # هذا البلوك مخصص للتشغيل المحلي فقط
