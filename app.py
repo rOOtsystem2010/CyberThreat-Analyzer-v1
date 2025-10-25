@@ -26,23 +26,29 @@ except Exception as e:
 app = Flask(__name__, template_folder='templates')
 Compress(app) # تهيئة ضغط Gzip
 
-# معالج الأخطاء العام (يحل مشكلة JSON.parse)
-@app.errorhandler(400)
-@app.errorhandler(500)
-def handle_http_error(e):
-    """يضمن إرجاع JSON لأخطاء HTTP بدلاً من صفحة HTML."""
-    status_code = getattr(e, 'code', 500)
-    error_message = getattr(e, 'description', 'Internal Server Error' if status_code == 500 else 'Bad Request')
+# 🛑🛑🛑 الإصلاح الحاسم: معالج الأخطاء العام لضمان JSON بدلاً من HTML 🛑🛑🛑
+@app.errorhandler(Exception)
+def handle_general_error(e):
+    """يضمن إرجاع JSON لجميع الأخطاء بدلاً من صفحة HTML (يحل JSON.parse)."""
     
-    friendly_message = "خطأ خادم داخلي حرج (500). يرجى مراجعة سجلات Render." if status_code == 500 else "خطأ في الطلب (400). الرجاء التحقق من الملف."
+    # تحديد Status Code ورسالة الخطأ 
+    status_code = getattr(e, 'code', 500)
+    error_message = str(e)
+
+    # إذا كان الخطأ من نوع HTTP (مثل 400 Bad Request)، نستخدم تفاصيله
+    if hasattr(e, 'get_response') and e.code:
+        status_code = e.code
+        error_message = e.description
+    
+    # رسالة ودية للمستخدم لتفادي رسالة HTML
+    friendly_message = f"خطأ خادم داخلي غير متوقع ({status_code}). يرجى مراجعة سجلات Render. (JSON Parse Error Source)"
     
     return jsonify({
         "success": False,
         "error": f"{friendly_message} | التفاصيل: {error_message}"
     }), status_code
 
-
-# مخطط JSON المطلوب من النموذج (ضروري للحصول على استجابة منظمة)
+# مخطط JSON المطلوب من النموذج (مع جميع الإصلاحات النهائية)
 ANALYSIS_SCHEMA = types.Schema(
     type=types.Type.OBJECT,
     properties={
@@ -120,24 +126,52 @@ ANALYSIS_SCHEMA = types.Schema(
             description="النتائج المفصلة، مجمعة حسب الخطورة.",
             properties={
                 "critical": types.Schema(
-                    type=types.Type.OBJECT,
-                    properties={"التفاصيل": types.Schema(type=types.Type.STRING, description="ملخص النتائج الحرجة.")},
-                    required=["التفاصيل"]
+                    type=types.Type.ARRAY, 
+                    description="قائمة بالنتائج الحرجة.",
+                    items=types.Schema(
+                        type=types.Type.OBJECT,
+                        properties={
+                            "النتيجة": types.Schema(type=types.Type.STRING),
+                            "التوصية": types.Schema(type=types.Type.STRING)
+                        },
+                        required=["النتيجة", "التوصية"]
+                    )
                 ),
                 "high": types.Schema(
-                    type=types.Type.OBJECT,
-                    properties={"التفاصيل": types.Schema(type=types.Type.STRING, description="ملخص النتائج العالية.")},
-                    required=["التفاصيل"]
+                    type=types.Type.ARRAY, 
+                    description="قائمة بالنتائج ذات الخطورة العالية.",
+                    items=types.Schema(
+                        type=types.Type.OBJECT,
+                        properties={
+                            "النتيجة": types.Schema(type=types.Type.STRING),
+                            "التوصية": types.Schema(type=types.Type.STRING)
+                        },
+                        required=["النتيجة", "التوصية"]
+                    )
                 ),
                 "medium": types.Schema(
-                    type=types.Type.OBJECT,
-                    properties={"التفاصيل": types.Schema(type=types.Type.STRING, description="ملخص النتائج المتوسطة.")},
-                    required=["التفاصيل"]
+                    type=types.Type.ARRAY, 
+                    description="قائمة بالنتائج ذات الخطورة المتوسطة.",
+                    items=types.Schema(
+                        type=types.Type.OBJECT,
+                        properties={
+                            "النتيجة": types.Schema(type=types.Type.STRING),
+                            "التوصية": types.Schema(type=types.Type.STRING)
+                        },
+                        required=["النتيجة", "التوصية"]
+                    )
                 ),
                 "low": types.Schema(
-                    type=types.Type.OBJECT,
-                    properties={"التفاصيل": types.Schema(type=types.Type.STRING, description="ملخص النتائج المنخفضة.")},
-                    required=["التفاصيل"]
+                    type=types.Type.ARRAY, 
+                    description="قائمة بالنتائج ذات الخطورة المنخفضة.",
+                    items=types.Schema(
+                        type=types.Type.OBJECT,
+                        properties={
+                            "النتيجة": types.Schema(type=types.Type.STRING),
+                            "التوصية": types.Schema(type=types.Type.STRING)
+                        },
+                        required=["النتيجة", "التوصية"]
+                    )
                 )
             },
             required=["critical", "high", "medium", "low"]
@@ -198,6 +232,10 @@ def index():
 def analyze_log():
     """نقطة النهاية لتحليل ملف السجل."""
     
+    # التأكد من وجود المفتاح قبل أي عملية
+    if not client.api_key:
+         return jsonify({"success": False, "error": "خطأ حرج في تهيئة المفتاح API. يرجى التحقق من إعدادات البيئة (Render)."}), 500
+
     if 'file' not in request.files:
         return jsonify({"success": False, "error": "لم يتم إرفاق ملف (File input name should be 'file')"}), 400
 
@@ -236,8 +274,10 @@ def analyze_log():
             
             # معالجة JSON القوية 
             try:
+                # تنظيف النص: إزالة المسافات البيضاء وعلامات Markdown (مثل ```json)
                 json_text = response.text.strip().lstrip('```json').rstrip('```')
                 
+                # التحقق للتأكد من أن النص يبدأ بـ { أو [ قبل محاولة التحويل
                 if not json_text.startswith('{') and not json_text.startswith('['):
                     print(f"JSON Parsing Failed: Response did not start with {{ or [. Beginning of text: {json_text[:200]}...")
                     raise json.JSONDecodeError("Response is not valid JSON.", doc=json_text, pos=0)
@@ -249,9 +289,10 @@ def analyze_log():
                 return jsonify({"success": False, "error": "فشل تحليل استجابة الذكاء الاصطناعي إلى JSON. قد يكون النموذج أضاف نصاً غير مطلوباً. (JSON Decode Error)"}), 500
 
         except APIError as e:
-            # الآن ستظهر رسائل أخطاء المخطط هنا 
+            # خطأ في مفتاح API أو الرصيد أو القيود
             return jsonify({"success": False, "error": f"خطأ في الاتصال بواجهة Gemini API (API Error): {e.message}"}), 500
         except Exception as e:
+            # معالجة الأخطاء العامة غير المتوقعة (مهم لـ JSON)
             return jsonify({"success": False, "error": f"حدث خطأ غير متوقع أثناء المعالجة: {e}"}), 500
 
     return jsonify({"success": False, "error": "نوع ملف غير مدعوم. يرجى استخدام .log، .txt، .csv، .json أو .jsonl"}), 400
