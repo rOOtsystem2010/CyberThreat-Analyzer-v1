@@ -8,10 +8,9 @@ from google.genai import types
 from google.genai.errors import APIError
 
 # =========================================================================
-# 🛑🛑🛑 قراءة المفتاح من متغيرات البيئة 🛑🛑🛑
+# قراءة المفتاح من متغيرات البيئة 
 API_KEY = os.environ.get('GEMINI_API_KEY')
 
-# إذا لم يتم تعيين المفتاح، نرفع خطأ بيئي حرج
 if not API_KEY:
     print("FATAL ERROR: GEMINI_API_KEY is not set in environment.")
     raise EnvironmentError("GEMINI_API_KEY is required but not found in environment variables. Check Render environment settings.")
@@ -27,7 +26,7 @@ except Exception as e:
 app = Flask(__name__, template_folder='templates')
 Compress(app) # تهيئة ضغط Gzip
 
-# 🛑 هذا الكود يضمن إرجاع JSON لأخطاء HTTP بدلاً من صفحة HTML (تم حله JSON.parse) 🛑
+# معالج الأخطاء العام (يحل مشكلة JSON.parse)
 @app.errorhandler(400)
 @app.errorhandler(500)
 def handle_http_error(e):
@@ -120,10 +119,26 @@ ANALYSIS_SCHEMA = types.Schema(
             type=types.Type.OBJECT,
             description="النتائج المفصلة، مجمعة حسب الخطورة.",
             properties={
-                "critical": types.Schema(type=types.Type.OBJECT),
-                "high": types.Schema(type=types.Type.OBJECT),
-                "medium": types.Schema(type=types.Type.OBJECT),
-                "low": types.Schema(type=types.Type.OBJECT)
+                "critical": types.Schema(
+                    type=types.Type.OBJECT,
+                    properties={"التفاصيل": types.Schema(type=types.Type.STRING, description="ملخص النتائج الحرجة.")}, # 🛑 الإصلاح هنا 🛑
+                    required=["التفاصيل"]
+                ),
+                "high": types.Schema(
+                    type=types.Type.OBJECT,
+                    properties={"التفاصيل": types.Schema(type=types.Type.STRING, description="ملخص النتائج العالية.")}, # 🛑 الإصلاح هنا 🛑
+                    required=["التفاصيل"]
+                ),
+                "medium": types.Schema(
+                    type=types.Type.OBJECT,
+                    properties={"التفاصيل": types.Schema(type=types.Type.STRING, description="ملخص النتائج المتوسطة.")}, # 🛑 الإصلاح هنا 🛑
+                    required=["التفاصيل"]
+                ),
+                "low": types.Schema(
+                    type=types.Type.OBJECT,
+                    properties={"التفاصيل": types.Schema(type=types.Type.STRING, description="ملخص النتائج المنخفضة.")}, # 🛑 الإصلاح هنا 🛑
+                    required=["التفاصيل"]
+                )
             },
             required=["critical", "high", "medium", "low"]
         ),
@@ -131,8 +146,14 @@ ANALYSIS_SCHEMA = types.Schema(
         "interactive_timeline": types.Schema(
             type=types.Type.OBJECT,
             properties={
-                "groups": types.Schema(type=types.Type.ARRAY),
-                "items": types.Schema(type=types.Type.ARRAY)
+                "groups": types.Schema(
+                    type=types.Type.ARRAY,
+                    items=types.Schema(type=types.Type.OBJECT, description="كائن يصف مجموعة زمنية.") # 🛑 الإصلاح هنا 🛑
+                ),
+                "items": types.Schema(
+                    type=types.Type.ARRAY,
+                    items=types.Schema(type=types.Type.OBJECT, description="كائن يصف حدثاً زمنياً.") # 🛑 الإصلاح هنا 🛑
+                )
             },
             required=["groups", "items"]
         ),
@@ -156,7 +177,7 @@ def index():
 def analyze_log():
     """نقطة النهاية لتحليل ملف السجل."""
     
-    # 🛑🛑🛑 تمت إزالة التحقق الخاطئ client.api_key الذي كان يسبب Attribute Error 🛑🛑🛑
+    # لم يعد هناك حاجة للتحقق من client.api_key هنا
     
     if 'file' not in request.files:
         return jsonify({"success": False, "error": "لم يتم إرفاق ملف (File input name should be 'file')"}), 400
@@ -209,6 +230,7 @@ def analyze_log():
                 return jsonify({"success": False, "error": "فشل تحليل استجابة الذكاء الاصطناعي إلى JSON. قد يكون النموذج أضاف نصاً غير مطلوباً. (JSON Decode Error)"}), 500
 
         except APIError as e:
+            # الآن ستظهر رسائل أخطاء المخطط هنا (مثل الخطأ الذي أرسلته سابقاً)
             return jsonify({"success": False, "error": f"خطأ في الاتصال بواجهة Gemini API (API Error): {e.message}"}), 500
         except Exception as e:
             return jsonify({"success": False, "error": f"حدث خطأ غير متوقع أثناء المعالجة: {e}"}), 500
