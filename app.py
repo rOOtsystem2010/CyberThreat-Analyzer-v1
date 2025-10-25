@@ -2,13 +2,13 @@ import os
 import json
 import io
 from flask import Flask, request, jsonify, render_template
-from flask_compress import Compress # 🛑 الإصلاح الجديد: استيراد مكتبة الضغط Gzip 🛑
+from flask_compress import Compress 
 from google import genai
 from google.genai import types
 from google.genai.errors import APIError
 
 # =========================================================================
-# 🛑xs🛑🛑 قراءة المفتاح من متغيرات البيئة 🛑sx🛑🛑
+# 🛑🛑🛑 قراءة المفتاح من متغيرات البيئة 🛑🛑🛑
 API_KEY = os.environ.get('GEMINI_API_KEY')
 
 # إذا لم يتم تعيين المفتاح، نرفع خطأ بيئي حرج
@@ -27,23 +27,21 @@ except Exception as e:
 app = Flask(__name__, template_folder='templates')
 Compress(app) # تهيئة ضغط Gzip
 
-# 🛑🛑🛑 الإصلاح النهائي: معالج الأخطاء العام (يحل مشكلة JSON.parse) 🛑🛑🛑
+# 🛑 هذا الكود يضمن إرجاع JSON لأخطاء HTTP بدلاً من صفحة HTML (تم حله JSON.parse) 🛑
 @app.errorhandler(400)
 @app.errorhandler(500)
 def handle_http_error(e):
     """يضمن إرجاع JSON لأخطاء HTTP بدلاً من صفحة HTML."""
-    # e.code سيكون 400 أو 500
     status_code = getattr(e, 'code', 500)
     error_message = getattr(e, 'description', 'Internal Server Error' if status_code == 500 else 'Bad Request')
     
-    # رسالة خطأ باللغة العربية
     friendly_message = "خطأ خادم داخلي حرج (500). يرجى مراجعة سجلات Render." if status_code == 500 else "خطأ في الطلب (400). الرجاء التحقق من الملف."
     
     return jsonify({
         "success": False,
         "error": f"{friendly_message} | التفاصيل: {error_message}"
     }), status_code
-# 🛑🛑🛑 نهاية الإصلاح النهائي 🛑🛑🛑
+
 
 # مخطط JSON المطلوب من النموذج (ضروري للحصول على استجابة منظمة)
 ANALYSIS_SCHEMA = types.Schema(
@@ -158,10 +156,8 @@ def index():
 def analyze_log():
     """نقطة النهاية لتحليل ملف السجل."""
     
-    # التأكد من وجود المفتاح قبل أي عملية
-    if not client.api_key:
-         return jsonify({"success": False, "error": "خطأ حرج في تهيئة المفتاح API. يرجى التحقق من إعدادات البيئة (Render)."}), 500
-
+    # 🛑🛑🛑 تمت إزالة التحقق الخاطئ client.api_key الذي كان يسبب Attribute Error 🛑🛑🛑
+    
     if 'file' not in request.files:
         return jsonify({"success": False, "error": "لم يتم إرفاق ملف (File input name should be 'file')"}), 400
 
@@ -188,46 +184,38 @@ def analyze_log():
             
             # استدعاء Gemini API
             response = client.models.generate_content(
-                model='gemini-2.5-flash', # استخدام النموذج المستقر
+                model='gemini-2.5-flash', 
                 contents=user_prompt,
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction,
                     response_mime_type="application/json",
                     response_schema=ANALYSIS_SCHEMA,
-                    # ضبط درجة الحرارة للحصول على استجابات أكثر ثباتًا ومنطقية
                     temperature=0.2 
                 )
             )
             
-            # الإصلاح رقم 2: معالجة JSON القوية لخطأ JSON.parse
+            # معالجة JSON القوية 
             try:
-                # 1. تنظيف النص: إزالة المسافات البيضاء وعلامات Markdown (مثل ```json)
                 json_text = response.text.strip().lstrip('```json').rstrip('```')
                 
-                # 2. التحقق للتأكد من أن النص يبدأ بـ { أو [ قبل محاولة التحويل
                 if not json_text.startswith('{') and not json_text.startswith('['):
                     print(f"JSON Parsing Failed: Response did not start with {{ or [. Beginning of text: {json_text[:200]}...")
                     raise json.JSONDecodeError("Response is not valid JSON.", doc=json_text, pos=0)
 
                 analysis_data = json.loads(json_text)
-                # يتم الآن ضغط الاستجابة تلقائياً بواسطة Flask-Compress
                 return jsonify(analysis_data)
             
             except json.JSONDecodeError as e:
-                # خطأ في تحليل JSON
                 return jsonify({"success": False, "error": "فشل تحليل استجابة الذكاء الاصطناعي إلى JSON. قد يكون النموذج أضاف نصاً غير مطلوباً. (JSON Decode Error)"}), 500
 
         except APIError as e:
-            # خطأ في مفتاح API أو الرصيد أو القيود
             return jsonify({"success": False, "error": f"خطأ في الاتصال بواجهة Gemini API (API Error): {e.message}"}), 500
         except Exception as e:
-            # معالجة الأخطاء العامة
             return jsonify({"success": False, "error": f"حدث خطأ غير متوقع أثناء المعالجة: {e}"}), 500
 
     return jsonify({"success": False, "error": "نوع ملف غير مدعوم. يرجى استخدام .log، .txt، .csv، .json أو .jsonl"}), 400
 
 if __name__ == '__main__':
-    # هذا البلوك مخصص للتشغيل المحلي فقط
     if 'RENDER' not in os.environ:
         print("Running Flask locally (Development Mode)...")
         app.run(debug=True, host='0.0.0.0', port=5000)
