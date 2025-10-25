@@ -8,10 +8,10 @@ from google.genai import types
 from google.genai.errors import APIError
 
 # =========================================================================
-# 🛑🛑🛑 الإصلاح رقم 1: قراءة المفتاح من متغيرات البيئة 🛑🛑🛑
+# 🛑xs🛑🛑 قراءة المفتاح من متغيرات البيئة 🛑sx🛑🛑
 API_KEY = os.environ.get('GEMINI_API_KEY')
 
-# إذا لم يتم تعيين المفتاح، نرفع خطأ بيئي حرج (حل مشكلة 502)
+# إذا لم يتم تعيين المفتاح، نرفع خطأ بيئي حرج
 if not API_KEY:
     print("FATAL ERROR: GEMINI_API_KEY is not set in environment.")
     raise EnvironmentError("GEMINI_API_KEY is required but not found in environment variables. Check Render environment settings.")
@@ -25,7 +25,25 @@ except Exception as e:
 # =========================================================================
 
 app = Flask(__name__, template_folder='templates')
-Compress(app) # 🛑 الإصلاح الجديد: تهيئة ضغط Gzip لمعالجة الاستجابات الطويلة 🛑
+Compress(app) # تهيئة ضغط Gzip
+
+# 🛑🛑🛑 الإصلاح النهائي: معالج الأخطاء العام (يحل مشكلة JSON.parse) 🛑🛑🛑
+@app.errorhandler(400)
+@app.errorhandler(500)
+def handle_http_error(e):
+    """يضمن إرجاع JSON لأخطاء HTTP بدلاً من صفحة HTML."""
+    # e.code سيكون 400 أو 500
+    status_code = getattr(e, 'code', 500)
+    error_message = getattr(e, 'description', 'Internal Server Error' if status_code == 500 else 'Bad Request')
+    
+    # رسالة خطأ باللغة العربية
+    friendly_message = "خطأ خادم داخلي حرج (500). يرجى مراجعة سجلات Render." if status_code == 500 else "خطأ في الطلب (400). الرجاء التحقق من الملف."
+    
+    return jsonify({
+        "success": False,
+        "error": f"{friendly_message} | التفاصيل: {error_message}"
+    }), status_code
+# 🛑🛑🛑 نهاية الإصلاح النهائي 🛑🛑🛑
 
 # مخطط JSON المطلوب من النموذج (ضروري للحصول على استجابة منظمة)
 ANALYSIS_SCHEMA = types.Schema(
@@ -181,16 +199,14 @@ def analyze_log():
                 )
             )
             
-            # 🛑 الإصلاح رقم 2: معالجة JSON القوية لخطأ JSON.parse 🛑
+            # الإصلاح رقم 2: معالجة JSON القوية لخطأ JSON.parse
             try:
                 # 1. تنظيف النص: إزالة المسافات البيضاء وعلامات Markdown (مثل ```json)
                 json_text = response.text.strip().lstrip('```json').rstrip('```')
                 
                 # 2. التحقق للتأكد من أن النص يبدأ بـ { أو [ قبل محاولة التحويل
                 if not json_text.startswith('{') and not json_text.startswith('['):
-                    # إظهار بداية النص الذي فشل في التحليل للمساعدة في تصحيح الأخطاء
                     print(f"JSON Parsing Failed: Response did not start with {{ or [. Beginning of text: {json_text[:200]}...")
-                    # رفع خطأ فك التشفير القياسي
                     raise json.JSONDecodeError("Response is not valid JSON.", doc=json_text, pos=0)
 
                 analysis_data = json.loads(json_text)
