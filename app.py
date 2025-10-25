@@ -16,6 +16,7 @@ if not API_KEY:
     raise EnvironmentError("GEMINI_API_KEY is required but not found in environment variables. Check Render environment settings.")
 
 try:
+    # يتم إنشاء العميل هنا مرة واحدة
     client = genai.Client(api_key=API_KEY)
 except Exception as e:
     print(f"Error initializing Gemini client: {e}")
@@ -26,7 +27,7 @@ except Exception as e:
 app = Flask(__name__, template_folder='templates')
 Compress(app) # تهيئة ضغط Gzip
 
-# 🛑🛑🛑 الإصلاح الحاسم: معالج الأخطاء العام لضمان JSON بدلاً من HTML 🛑🛑🛑
+# معالج الأخطاء العام لضمان JSON بدلاً من HTML (حل مشكلة JSON.parse)
 @app.errorhandler(Exception)
 def handle_general_error(e):
     """يضمن إرجاع JSON لجميع الأخطاء بدلاً من صفحة HTML (يحل JSON.parse)."""
@@ -232,10 +233,8 @@ def index():
 def analyze_log():
     """نقطة النهاية لتحليل ملف السجل."""
     
-    # التأكد من وجود المفتاح قبل أي عملية
-    if not client.api_key:
-         return jsonify({"success": False, "error": "خطأ حرج في تهيئة المفتاح API. يرجى التحقق من إعدادات البيئة (Render)."}), 500
-
+    # 🛑🛑🛑 تمت إزالة التحقق الخاطئ client.api_key الذي كان يسبب Attribute Error 🛑🛑🛑
+    
     if 'file' not in request.files:
         return jsonify({"success": False, "error": "لم يتم إرفاق ملف (File input name should be 'file')"}), 400
 
