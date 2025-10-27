@@ -305,7 +305,8 @@
         // ------------------------------------------
         // وظائف بناء واجهة المستخدم
         // ------------------------------------------
-
+        
+        // 🛑 [إضافة التصحيح 1] دالة لإنشاء أيقونة الحالة (حي أو ميت) 🛑
         /**
          * يقوم بإنشاء أيقونة الحالة (حي أو ميت) لجدول IP.
          * @param {string} status - حالة IP ('حي', 'ميت', 'N/A').
@@ -320,7 +321,6 @@
             }
             return status; // إرجاع النص كما هو لـ N/A أو أي حالة أخرى
         }
-
 
         /**
          * إنشاء جدول HTML من مصفوفة بيانات.
@@ -352,7 +352,7 @@
                 headers.forEach(headerKey => {
                     let cellContent = row[headerKey] || '';
                     
-                    // 🛑🛑🛑 إضافة الأيقونة الملونة لحالة IP 🛑🛑🛑
+                    // 🛑 [تطبيق التصحيح 2] استدعاء الدالة لجدول IP 🛑
                     if (isIpTable && headerKey === 'الحالة') {
                         cellContent = renderStatusIcon(cellContent);
                     }
@@ -507,23 +507,31 @@
             if (tables.ip_intelligence) {
                 const ipHeaders = ["عنوان IP", "المنظمة", "الدولة", "الدور", "الحالة"];
                 ipIntelligenceTableDiv.innerHTML = createTableHTML(tables.ip_intelligence, ipHeaders, true); // 🛑🛑🛑 true لتفعيل الأيقونات 🛑🛑🛑
+            } else {
+                 ipIntelligenceTableDiv.innerHTML = '<p class="text-gray-500">لا توجد بيانات متاحة لهذا الجدول في التحليل.</p>';
             }
 
             // 3.2. تحليل السبب الجذري (RCA)
             if (tables.rca_analysis) {
                 const rcaHeaders = ["عنصر التحليل", "النتيجة/التفاصيل", "التوصية"];
                 rcaAnalysisTableDiv.innerHTML = createTableHTML(tables.rca_analysis, rcaHeaders);
+            } else {
+                 rcaAnalysisTableDiv.innerHTML = '<p class="text-gray-500">لا توجد بيانات متاحة لهذا الجدول في التحليل.</p>';
             }
 
             // 3.3. محاكاة YARA
             if (tables.yara_analysis) {
                 const yaraHeaders = ["القاعدة المطابقة", "الشدة", "النتيجة"];
                 yaraAnalysisTableDiv.innerHTML = createTableHTML(tables.yara_analysis, yaraHeaders);
+            } else {
+                 yaraAnalysisTableDiv.innerHTML = '<p class="text-gray-500">لا توجد بيانات متاحة لهذا الجدول في التحليل.</p>';
             }
             
             // 4. النتائج التفصيلية
             if (data.detailed_findings) {
                 renderDetailedFindings(data.detailed_findings);
+            } else {
+                detailedFindingsContainer.innerHTML = '<p class="text-gray-500">لم يتم العثور على نتائج تفصيلية تتطلب تصنيف خطورة.</p>';
             }
 
             // 5. التوصيات
@@ -541,6 +549,8 @@
             // 6. الخط الزمني التفاعلي
             if (data.interactive_timeline) {
                 renderTimeline(data.interactive_timeline);
+            } else {
+                timelineVisualizationDiv.innerHTML = '<p class="text-gray-500 p-4">لا تتوفر بيانات خط زمني تفاعلي في هذا التحليل.</p>';
             }
 
             // 7. البيانات الوصفية
