@@ -161,14 +161,26 @@ ANALYSIS_SCHEMA = types.Schema(
             required=["critical", "high", "medium", "low"]
         ),
         "recommendations": types.Schema(type=types.Type.ARRAY, items=types.Schema(type=types.Type.STRING), description="قائمة بالتوصيات الأمنية والإجراءات المضادة."),
+        # =====================================================================
+        # التعديل: إضافة خاصية 'items' لمصفوفات الخط الزمني لتصحيح الخطأ
+        # =====================================================================
         "interactive_timeline": types.Schema(
             type=types.Type.OBJECT,
             properties={
-                "groups": types.Schema(type=types.Type.ARRAY),
-                "items": types.Schema(type=types.Type.ARRAY)
+                "groups": types.Schema(
+                    type=types.Type.ARRAY,
+                    items=types.Schema(type=types.Type.OBJECT), # تم الإصلاح: تحديد نوع العناصر
+                    description="مصفوفة مجموعات الخط الزمني (مثل Vis.js Groups)."
+                ),
+                "items": types.Schema(
+                    type=types.Type.ARRAY,
+                    items=types.Schema(type=types.Type.OBJECT), # تم الإصلاح: تحديد نوع العناصر
+                    description="مصفوفة عناصر الخط الزمني (مثل Vis.js Items)."
+                )
             },
             required=["groups", "items"]
         ),
+        # =====================================================================
         "analysis_metadata": types.Schema(
             type=types.Type.OBJECT,
             properties={
@@ -191,7 +203,7 @@ def index():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CyberThreat Analyzer v1.0.2</title>
+    <title>CyberThreat Analyzer v1.0.3</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap');
@@ -224,7 +236,7 @@ def index():
 
     <div class="container-main mx-auto">
         <header class="text-center py-6">
-            <h1 class="text-3xl font-bold text-sky-400">محلل التهديدات السيبرانية CYBERTHREAT ANALYZER v1.0.2</h1>
+            <h1 class="text-3xl font-bold text-sky-400">محلل التهديدات السيبرانية CYBERTHREAT ANALYZER v1.0.3</h1>
             <p class="text-gray-400 mt-1">مدعوم بخوارزميات Gemini - تحليل وتحديد التهديدات السيبرانية</p>
         </header>
 
@@ -496,11 +508,12 @@ def index():
                 }
 
                 data.forEach(row => {
-                    const rowHtml = Object.values(row).map(val => 
-                        `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${val}</td>`
+                    // افتراض أن جميع الصفوف لها نفس عدد المفاتيح
+                    const keys = Object.keys(data[0] || {}); 
+                    
+                    const rowHtml = keys.map(key => 
+                        `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${row[key]}</td>`
                     ).join('');
-                    // استخدام Object.keys للحصول على عدد الأعمدة وتعيين colspan بشكل ديناميكي
-                    const colspan = Object.keys(data[0] || {}).length || 5; 
                     
                     tbody.insertAdjacentHTML('beforeend', `
                         <tr class="hover:bg-gray-700 transition duration-150">
@@ -533,7 +546,7 @@ def index():
                 document.getElementById('attackOrigin').textContent = narrative.attack_origin_country;
                 document.getElementById('attackStages').textContent = narrative.stages_found.join(' | ');
 
-                // 3. النتائج التفصيلية (Detailed Findings) - **هذا هو إصلاح خطأ 'slice is not a function'**
+                // 3. النتائج التفصيلية (Detailed Findings)
                 renderDetailedFindings(data.detailed_findings);
 
                 // 4. الجداول (Tables)
