@@ -11,19 +11,20 @@ from google.genai.errors import APIError
 # قراءة المفتاح من متغيرات البيئة
 API_KEY = os.environ.get('GEMINI_API_KEY')
 
-# إذا لم يتم تعيين المفتاح، نرفع خطأ بيئي حرج
+# إذا لم يتم تعيين المفتاح، لا نرفع خطأ حرج يوقف عمل التطبيق.
+# بدلاً من ذلك، نستخدم مفتاحًا وهميًا (FAKE_KEY) للسماح للتهيئة بالمرور،
+# ونقوم بالفحص الحقيقي داخل دالة /analyze.
 if not API_KEY:
-    print("FATAL ERROR: GEMINI_API_KEY is not set in environment.")
-    # لا نرفع خطأ هنا في Vercel للسماح للتطبيق بالعمل جزئيًا إذا كان المفتاح غير معرّف
-    # (لكن التحليل سيفشل لاحقًا)، بدلاً من ذلك، نقوم بالتهيئة مع المفتاح المتوفر.
-    pass
+    print("WARNING: GEMINI_API_KEY is not set. API calls will fail.")
+    API_KEY = "FAKE_KEY"
 
 try:
-    # تهيئة العميل باستخدام المفتاح، حتى لو كان فارغًا، لمنع فشل التشغيل
-    client = genai.Client(api_key=API_KEY if API_KEY else "FAKE_KEY")
+    # تهيئة العميل باستخدام المفتاح الفعلي أو الوهمي
+    client = genai.Client(api_key=API_KEY)
 except Exception as e:
+    # هذا الخطأ نادر الحدوث في هذه المرحلة، لكنه يحمي من حالات تعطل المكتبة
     print(f"Error initializing Gemini client: {e}")
-    # لا نرفع خطأ هنا للسماح للتطبيق بالتحميل
+    # إذا حدث خطأ، نتأكد من أن المفتاح سيبقى 'FAKE_KEY' لكي يتم الفحص لاحقًا
     pass
 
 # =========================================================================
@@ -104,7 +105,6 @@ ANALYSIS_SCHEMA = types.Schema(
             },
             required=["ip_intelligence", "rca_analysis", "yara_analysis"]
         ),
-        # هذا الجزء هو الذي كان يسبب خطأ الواجهة الأمامية، قمنا بتبسيطه
         "detailed_findings": types.Schema(
             type=types.Type.OBJECT,
             description="النتائج المفصلة، مجمعة حسب الخطورة.",
@@ -499,6 +499,9 @@ def index():
                     const rowHtml = Object.values(row).map(val => 
                         `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${val}</td>`
                     ).join('');
+                    // استخدام Object.keys للحصول على عدد الأعمدة وتعيين colspan بشكل ديناميكي
+                    const colspan = Object.keys(data[0] || {}).length || 5; 
+                    
                     tbody.insertAdjacentHTML('beforeend', `
                         <tr class="hover:bg-gray-700 transition duration-150">
                             ${rowHtml}
@@ -584,11 +587,13 @@ def index():
                         showMessage('تم التحليل بنجاح. راجع النتائج أدناه.', 'success');
                     } else {
                         // خطأ من Flask (مثل خطأ API Key أو JSON Decode Error)
+                        // نستخدم data.error لأننا نرجعها من Flask عند فشل /analyze
                         throw new Error(data.error || 'حدث خطأ غير معروف في الخادم.');
                     }
 
                 } catch (error) {
                     console.error('Fetch Error:', error);
+                    // عرض رسالة الخطأ الواردة من الخادم أو الخطأ العام
                     showMessage(`فشل التحليل: ${error.message || 'يرجى التحقق من سجلات الخادم.'}`, 'error');
                     resultsSection.classList.add('hidden');
                 } finally {
@@ -609,9 +614,9 @@ def index():
 def analyze_log():
     """نقطة النهاية لتحليل ملف السجل."""
     
-    # التأكد من وجود العميل والمفتاح (على الأقل مفتاح وهمي)
-    if not hasattr(client, 'api_key') or client.api_key == "FAKE_KEY":
-         return jsonify({"success": False, "error": "خطأ حرج: المفتاح (GEMINI_API_KEY) غير مهيأ بشكل صحيح في بيئة النشر. يرجى التحقق من متغيرات Vercel البيئية."}), 500
+    # الفحص الحقيقي: التحقق من أن المفتاح موجود وله قيمة فعلية
+    if not API_KEY or API_KEY == "FAKE_KEY":
+         return jsonify({"success": False, "error": "خطأ حرج: المفتاح (GEMINI_API_KEY) غير مهيأ بشكل صحيح في بيئة النشر. يرجى التحقق من متغيرات Vercel البيئية. (المفتاح فارغ أو غير متوفر)"}), 500
 
     if 'file' not in request.files:
         return jsonify({"success": False, "error": "لم يتم إرفاق ملف (File input name should be 'file')"}), 400
@@ -668,8 +673,8 @@ def analyze_log():
                 return jsonify({"success": False, "error": "فشل تحليل استجابة الذكاء الاصطناعي إلى JSON. قد يكون النموذج أضاف نصاً غير مطلوباً. (JSON Decode Error)"}), 500
 
         except APIError as e:
-            # خطأ في مفتاح API أو الرصيد أو القيود
-            return jsonify({"success": False, "error": f"خطأ في الاتصال بواجهة Gemini API (API Error): {e.message}"}), 500
+            # خطأ في مفتاح API أو الرصيد أو القيود. هذه النقطة هي التي تفشل إذا كان المفتاح غير صحيح فعليًا.
+            return jsonify({"success": False, "error": f"خطأ في الاتصال بواجهة Gemini API (API Error). تحقق من المفتاح وقيود الرصيد: {e.message}"}), 500
         except Exception as e:
             # معالجة الأخطاء العامة
             return jsonify({"success": False, "error": f"حدث خطأ غير متوقع أثناء المعالجة: {e}"}), 500
