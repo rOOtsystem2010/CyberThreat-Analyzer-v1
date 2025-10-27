@@ -33,6 +33,30 @@ app = Flask(__name__)
 Compress(app) # تهيئة ضغط Gzip
 
 # مخطط JSON المطلوب من النموذج (ضروري للحصول على استجابة منظمة)
+# =====================================================================
+# تم التعديل: تحديد خصائص الكائن داخل مصفوفات الخط الزمني لحل مشكلة 'should be non-empty for OBJECT type'
+# =====================================================================
+TIMELINE_ITEM_SCHEMA = types.Schema(
+    type=types.Type.OBJECT,
+    properties={
+        "id": types.Schema(type=types.Type.INTEGER, description="معرف فريد للعنصر."),
+        "group": types.Schema(type=types.Type.INTEGER, description="معرف المجموعة التي ينتمي إليها هذا العنصر."),
+        "content": types.Schema(type=types.Type.STRING, description="وصف قصير للحدث (مثال: 'فشل في المصادقة')."),
+        "start": types.Schema(type=types.Type.STRING, description="الطابع الزمني الكامل للحدث (مثال: 'YYYY-MM-DDTHH:MM:SS')."),
+        "type": types.Schema(type=types.Type.STRING, description="نوع الحدث (مثال: 'box', 'point', 'range').")
+    },
+    required=["id", "group", "content", "start", "type"]
+)
+
+TIMELINE_GROUP_SCHEMA = types.Schema(
+    type=types.Type.OBJECT,
+    properties={
+        "id": types.Schema(type=types.Type.INTEGER, description="معرف فريد للمجموعة (مثال: 1, 2, 3)."),
+        "content": types.Schema(type=types.Type.STRING, description="اسم المجموعة (مثال: 'المضيف المخترق'، 'جدار الحماية').")
+    },
+    required=["id", "content"]
+)
+
 ANALYSIS_SCHEMA = types.Schema(
     type=types.Type.OBJECT,
     properties={
@@ -161,26 +185,26 @@ ANALYSIS_SCHEMA = types.Schema(
             required=["critical", "high", "medium", "low"]
         ),
         "recommendations": types.Schema(type=types.Type.ARRAY, items=types.Schema(type=types.Type.STRING), description="قائمة بالتوصيات الأمنية والإجراءات المضادة."),
-        # =====================================================================
-        # التعديل: إضافة خاصية 'items' لمصفوفات الخط الزمني لتصحيح الخطأ
-        # =====================================================================
+        
         "interactive_timeline": types.Schema(
             type=types.Type.OBJECT,
             properties={
                 "groups": types.Schema(
                     type=types.Type.ARRAY,
-                    items=types.Schema(type=types.Type.OBJECT), # تم الإصلاح: تحديد نوع العناصر
+                    # تم الإصلاح: استخدام المخطط المحدد بدلاً من OBJECT عام
+                    items=TIMELINE_GROUP_SCHEMA, 
                     description="مصفوفة مجموعات الخط الزمني (مثل Vis.js Groups)."
                 ),
                 "items": types.Schema(
                     type=types.Type.ARRAY,
-                    items=types.Schema(type=types.Type.OBJECT), # تم الإصلاح: تحديد نوع العناصر
+                    # تم الإصلاح: استخدام المخطط المحدد بدلاً من OBJECT عام
+                    items=TIMELINE_ITEM_SCHEMA, 
                     description="مصفوفة عناصر الخط الزمني (مثل Vis.js Items)."
                 )
             },
             required=["groups", "items"]
         ),
-        # =====================================================================
+        
         "analysis_metadata": types.Schema(
             type=types.Type.OBJECT,
             properties={
@@ -190,6 +214,7 @@ ANALYSIS_SCHEMA = types.Schema(
     },
     required=["risk_assessment", "attack_narrative", "tables", "detailed_findings", "recommendations", "interactive_timeline", "analysis_metadata"]
 )
+# =====================================================================
 
 
 @app.route('/')
