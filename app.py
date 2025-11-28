@@ -663,7 +663,7 @@ def analyze_log():
     if log_file.filename == '':
         return jsonify({"success": False, "error": "لم يتم اختيار ملف"}), 400
 
-    if log_file and log_file.filename.endswith(('.log', '.txt', '.csv', '.json', '.jsonl')):
+    if log_file and log_file.filename.endswith(('.log', '.txt', '.csv', '.json', '.jsonl', 'pcap', 'pcapg')):
         try:
             # قراءة محتويات الملف مباشرة من الذاكرة
             log_content = log_file.read().decode('utf-8')
